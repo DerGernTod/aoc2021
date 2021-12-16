@@ -3,7 +3,7 @@ use std::fs;
 pub fn part_1() {
     let input = parse_to_bin("./input/day_16.txt");
     let mut cursor_pos = 0;
-    let out = read_packet(&input, &mut cursor_pos);
+    let out = read_packet(&input, &mut cursor_pos, true);
     println!("{:?}", out);
     println!("{:?}", get_version_sum(out));
 }
@@ -11,11 +11,11 @@ pub fn part_1() {
 pub fn part_2() {
     let input = parse_to_bin("./input/day_16.txt");
     let mut cursor_pos = 0;
-    let out = read_packet(&input, &mut cursor_pos);
+    let out = read_packet(&input, &mut cursor_pos, false);
     println!("{:?}", out);
 }
 
-fn get_version_sum(out: Vec<i32>) -> i32 {
+fn get_version_sum(out: Vec<i64>) -> i64 {
     let mut next_is_version = false;
     let mut version_sum = 0;
     for result in out {
@@ -29,6 +29,10 @@ fn get_version_sum(out: Vec<i32>) -> i32 {
 
 fn parse_to_bin(file: &str) -> Vec<char> {
     let input_str = fs::read_to_string(file).unwrap();
+    parse_from_string(&input_str)
+}
+
+fn parse_from_string(input_str: &str) -> Vec<char> {
     input_str
         .chars()
         .map(|c| c.to_digit(16).unwrap())
@@ -38,38 +42,40 @@ fn parse_to_bin(file: &str) -> Vec<char> {
         .collect()
 }
 
-fn read_packet(input: &Vec<char>, cursor_pos: &mut usize) -> Vec<i32>  {
+fn read_packet(input: &Vec<char>, cursor_pos: &mut usize, write_bounds: bool) -> Vec<i64>  {
     let (version, type_id) = read_headers(input, cursor_pos);
     let mut out = vec![];
-    out.push(-1);
-    out.push(version.into());
-    
-    let mut infos = match type_id {
+    if write_bounds {
+        out.push(-1);
+        out.push(version.into());
+    }
+    let infos = match type_id {
         4 => read_literals(input, cursor_pos),
-        x => read_operator(input, cursor_pos, x)
+        x => read_operator(input, cursor_pos, x, write_bounds)
     };
-    out.append(&mut infos);
-    out.push(-2);
+    out.push(infos);
+    if write_bounds {
+        out.push(-2);
+    }
     out
 }
 
-fn read_literals(input: &Vec<char>, cursor_pos: &mut usize) -> Vec<i32> {
+fn read_literals(input: &Vec<char>, cursor_pos: &mut usize) -> i64 {
     let mut out = vec![];
     loop {
         let signal_bit = input.get(*cursor_pos).unwrap();
         *cursor_pos += 1;
         let literal: String = input[*cursor_pos..*cursor_pos + 4].iter().collect();
-        let literal = i32::from_str_radix(&literal, 2).unwrap();
         out.push(literal);
         *cursor_pos += 4;
         if *signal_bit == '0' {
             break;
         }
     }
-    out
+    i64::from_str_radix(&out.join(""), 2).expect(&format!("Error parsing bool from string {:?}", &out.join("")))
 }
 
-fn read_operator(input: &Vec<char>, cursor_pos: &mut usize, operator_type: u8) -> Vec<i32> {
+fn read_operator(input: &Vec<char>, cursor_pos: &mut usize, operator_type: u8, write_bounds: bool) -> i64 {
     let mut out = vec![];
     let length_type_id = input.get(*cursor_pos).unwrap();
     *cursor_pos += 1;
@@ -80,7 +86,7 @@ fn read_operator(input: &Vec<char>, cursor_pos: &mut usize, operator_type: u8) -
             *cursor_pos += 15;
             let start_cursor = *cursor_pos;
             while *cursor_pos < start_cursor + sub_packet_length {
-                let mut infos = read_packet(input, cursor_pos);
+                let mut infos = read_packet(input, cursor_pos, write_bounds);
                 out.append(&mut infos);
             }
         },
@@ -89,13 +95,23 @@ fn read_operator(input: &Vec<char>, cursor_pos: &mut usize, operator_type: u8) -
             let num_sub_packets = i32::from_str_radix(&num_sub_packets, 2).unwrap();
             *cursor_pos += 11;
             for _ in 0..num_sub_packets {
-                let mut infos = read_packet(input, cursor_pos);
+                let mut infos = read_packet(input, cursor_pos, write_bounds);
                 out.append(&mut infos);
             }
         },
         _ => panic!("There was a non-binary character in this operator!")
     };
-    out
+    let out_iter = out.iter();
+    match operator_type {
+        0 => out_iter.sum(),
+        1 => out_iter.product(),
+        2 => *out_iter.min().unwrap(),
+        3 => *out_iter.max().unwrap(),
+        5 => if out[0] > out[1] { 1 } else { 0 },
+        6 => if out[0] < out[1] { 1 } else { 0 },
+        7 => if out[0] == out[1] { 1 } else { 0 },
+        _ => panic!("Found an invalid operator type!")
+    }
 }
 
 fn read_headers(input: &Vec<char>, cursor_pos: &mut usize) -> (u8, u8) {
@@ -114,18 +130,17 @@ mod tests {
     use crate::day_16::*;
     #[test]
     fn part_1() {
-        let input = parse_to_bin("./input/day_16.test.txt");
+        let input = parse_from_string("A0016C880162017C3686B18A3D4780");
         let mut cursor_pos = 0;
-        let out = read_packet(&input, &mut cursor_pos);
+        let out = read_packet(&input, &mut cursor_pos, true);
         
         assert_eq!(get_version_sum(out), 31);
     }
     #[test]
     fn part_2() {
-        let input = parse_to_bin("./input/day_16.test.txt");
+        let input = parse_from_string("9C0141080250320F1802104A08");
         let mut cursor_pos = 0;
-        let out = read_packet(&input, &mut cursor_pos);
-        println!("{:?}", out);
-        assert_eq!(get_version_sum(out), 31);
+        let out = read_packet(&input, &mut cursor_pos, false);
+        assert_eq!(out[0], 1);
     }
 }
