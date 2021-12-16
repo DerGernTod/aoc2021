@@ -1,4 +1,4 @@
-use std::{fs, collections::{HashMap, HashSet, LinkedList}};
+use std::{fs, collections::{HashMap, HashSet}};
 
 pub fn part_1() {
     println!("fastest path is {} scary", find_fastest_path("./input/day_15.txt"));
