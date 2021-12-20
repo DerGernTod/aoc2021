@@ -8,22 +8,28 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug executable 'aoc2021'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=aoc2021",
-                    "--package=aoc2021"
-                ],
-                "filter": {
-                    "name": "aoc2021",
-                    "kind": "bin"
-                }
-            },
+            // "cargo": {
+            //     "args": [
+            //         "build",
+            //         "--bin=aoc2021",
+            //         "--package=aoc2021"
+            //     ],
+            //     "filter": {
+            //         "name": "aoc2021",
+            //         "kind": "bin"
+            //     }
+            // },
+            
+            "program": "${workspaceFolder}/target/debug/aoc2021.exe",
             "env": {
                 "RUST_BACKTRACE": "1"
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "sourceLanguages": [
+                "rust"
+            ]
         },
         {
             "type": "lldb",
