@@ -250,7 +250,7 @@ fn reindex(offset: usize, lookup_left: &mut Vec<NumberEntry>, lookup_right: Vec<
 fn check_explosions(lookup: &Vec<NumberEntry>) -> Option<usize> {
     lookup
         .iter()
-        .find_map(|num| {
+        .filter_map(|num| {
             if let NumberEntry::Pair(p) = num {
                 if p.depth >= 4 {
                     return Some(p.id);
@@ -258,13 +258,15 @@ fn check_explosions(lookup: &Vec<NumberEntry>) -> Option<usize> {
             }
             None
         })
-        
+        .map(|id| (id, calc_left_score(id, lookup, 1)))
+        .max_by(|(_, a), (_, b)| a.cmp(b))
+        .map(|(id, _)| id)
 }
 
 fn check_splits(lookup: &Vec<NumberEntry>) -> Option<usize> {
     lookup
         .iter()
-        .find_map(|num| {
+        .filter_map(|num| {
             if let NumberEntry::Literal(num) = num {
                 if num.value > 9 {
                     return Some(num.id);
@@ -272,6 +274,24 @@ fn check_splits(lookup: &Vec<NumberEntry>) -> Option<usize> {
             };
             None
         })
+        .map(|id| (id, calc_left_score(id, lookup, 1)))
+        .max_by(|(_, a), (_, b)| a.cmp(b))
+        .map(|(id, _)| id)
+}
+
+fn calc_left_score(id: usize, lookup: &Vec<NumberEntry>, dist: usize) -> usize {
+    let num = lookup.get(id).unwrap();
+    let parent = num.get_parent();
+    let mut score = 0;
+    if let Some(parent) = parent {
+
+        let parent_num = lookup.get(parent).unwrap();
+        if parent_num.left() == id {
+            score += 1 * dist;
+        }
+        score += calc_left_score(parent, lookup, dist + 1);
+    }
+    score
 }
 
 fn add(lookup_left: &mut Vec<NumberEntry>, lookup_right: Vec<NumberEntry>) {
@@ -295,27 +315,41 @@ fn add(lookup_left: &mut Vec<NumberEntry>, lookup_right: Vec<NumberEntry>) {
     }
 }
 
-fn magnitude(num: &Vec<NumberEntry>) -> usize {
-    let root_id = num.iter().find_map(|num| {
+fn find_root(num: &Vec<NumberEntry>) -> usize {
+    num.iter().find_map(|num| {
         if let NumberEntry::Pair(p) = num {
             if num.get_parent() == None {
                 return Some(num.get_id());
             }
         };
         None
-    }).unwrap();
-    return pair_magnitude(root_id, num);
+    }).unwrap()
 }
 
-fn pair_magnitude(num_id: usize, lookup: &Vec<NumberEntry>) -> usize {
+fn magnitude(num_id: usize, lookup: &Vec<NumberEntry>) -> usize {
     let num = lookup.get(num_id).unwrap();
     match num {
         NumberEntry::Literal(l) => l.value,
         NumberEntry::Pair(num) => {
-            pair_magnitude(num.left, lookup) * 3
-            + pair_magnitude(num.right, lookup) * 2
+            magnitude(num.left, lookup) * 3
+            + magnitude(num.right, lookup) * 2
         },
         NumberEntry::None => 0
+    }
+}
+
+fn print(entry: usize, lookup: &Vec<NumberEntry>) {
+    let entry = lookup.get(entry).unwrap();
+    match entry {
+        NumberEntry::Literal(l) => print!("{}", l.value),
+        NumberEntry::Pair(p) => {
+            print!("[");
+            print(p.left, lookup);
+            print!(",");
+            print(p.right, lookup);
+            print!("]");
+        },
+        NumberEntry::None => ()
     }
 }
 
@@ -324,10 +358,23 @@ mod tests {
     use crate::day_18::*;
     #[test]
     fn test_part_1() {
+        let mut ops = create_fishnumbers_from_path("./input/day_18.test.txt");
+        let mut first_num = ops.remove(0);
+        while ops.len() > 0 {
+            let first_op = ops.remove(0);
+            add(&mut first_num, first_op);
+            print(find_root(&first_num), &first_num);
+        }
+        assert_eq!(magnitude(find_root(&first_num), &first_num), 3488);
+    }
+    #[test]
+    fn test_part_1_simple() {
         let mut ops = create_fishnumbers_from_path("./input/day_18.test.simple.txt");
         let mut first_num = ops.remove(0);
-        let first_op = ops.remove(0);
-        add(&mut first_num, first_op);
-        assert_eq!(magnitude(&first_num), 1384);
+        while ops.len() > 0 {
+            let first_op = ops.remove(0);
+            add(&mut first_num, first_op);
+        }
+        assert_eq!(magnitude(find_root(&first_num), &first_num), 1384);
     }
 }
