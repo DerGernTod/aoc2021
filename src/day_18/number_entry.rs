@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct NumberInfo {
     pub id: usize,
     pub value: usize,
@@ -6,7 +6,7 @@ pub struct NumberInfo {
     pub parent: Option<usize>
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct PairInfo {
     pub id: usize,
     pub left: usize,
@@ -90,22 +90,6 @@ impl NumberEntry {
             NumberEntry::Pair(p) => p.parent
         }
     }
-
-    pub fn set_parent(&mut self, parent: Option<usize>) {
-        match self {
-            NumberEntry::Literal(l) => l.parent = parent,
-            NumberEntry::Pair(p) => p.parent = parent,
-            _ => ()
-        }
-    }
-
-    pub fn literal(&self) -> Option<&NumberInfo> {
-        if let NumberEntry::Literal(l) = self {
-            Some(l)
-        } else {
-            None
-        }
-    }
 }
 
 impl PairInfo {
@@ -120,7 +104,7 @@ impl PairInfo {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum NumberEntry {
     Literal(NumberInfo),
     Pair(PairInfo),
