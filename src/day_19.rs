@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet};
 use std::fs;
 use std::f32::consts::PI;
 
@@ -117,60 +117,35 @@ fn calc_scanner_rotations(scanner: &Vec<(i32, i32, i32)>) -> Vec<Vec<(i32, i32, 
         })
 }
 
-fn find_beacon_matches<'a>(relative_reference_beacons: &'a Vec<(i32, i32, i32)>, relative_beacons: &'a Vec<Vec<(i32, i32, i32)>>, ref_beacons: &Vec<(i32, i32, i32)>, beacon_ref_id: usize) -> Option<(usize, usize)> {
-    let mut matches: Vec<(usize, usize)> = relative_reference_beacons
-        .iter()
-        .map(|ref_coord| {
-            relative_beacons
-                .iter()
-                .filter_map(move |beacon_coord| beacon_coord.iter().position(|coord| coord == ref_coord))
-                .collect::<Vec<usize>>()
-        })
-        .enumerate()
-        .filter_map(|(coord_id, ref_id_list)| if ref_id_list.len() == 1 { Some((coord_id, ref_id_list[0])) } else { None })
-        .collect();
-    if matches.len() >= 11 {
-        Some(matches.remove(0))
-    } else {
-        None
-    }
-}
-
-fn find_relative_matching_beacons<'a>(relative_reference_beacons: &'a Vec<Vec<(i32, i32, i32)>>, relative_beacons: &'a Vec<Vec<(i32, i32, i32)>>, ref_beacons: &Vec<(i32, i32, i32)>) -> Option<(usize, usize)> {
-    relative_reference_beacons
+fn check_matches_per_rotation<'a>(relative_reference_beacons: &'a Vec<Vec<(i32, i32, i32)>>, rotations: &'a Vec<Vec<(i32, i32, i32)>>) -> Option<(usize, Vec<(usize, usize)>)> {
+    rotations
     .iter()
     .enumerate()
-    .find_map(|(beacon_ref_id, relative_reference_beacons)| {
-        let matches = find_beacon_matches(relative_reference_beacons, relative_beacons, ref_beacons, beacon_ref_id)
-            .into_iter()
-            .fold(HashMap::new(), |mut map, (ref_id, match_id, offset_id)| {
-                (*map.entry(ref_id).or_insert(vec![])).push((beacon_id, offset_id));
-                map
-        });
-        if matches.len() >= 12 {
-            println!("found {} matches for beacon ref id {}!", matches.len(), beacon_ref_id);
-            // take offsets
-            if matches.get(&beacon_ref_id).unwrap().len() > 1 {
-                matches.into_iter().find_map(|(ref_id, ids)| {
-                    if ref_id == beacon_ref_id {
-                        None
-                    } else {
-                        Some((ref_id, ids[0].1))
+    .find_map(|(rot_id, rot_beacons)| {
+        println!("checking rotation id {}", rot_id);
+        relative_reference_beacons.iter().find_map(|relative_reference_beacons| {
+            let matches: Vec<(usize, usize)> = rot_beacons
+            .iter()
+            .enumerate()
+            .filter_map(|(rot_beacon_id, rot_beacon)| {
+                if let Some(ref_id) = relative_reference_beacons.iter().position(|coord| coord == rot_beacon) {
+                    if rot_beacon != &(0i32, 0i32, 0i32) {
+                        println!("found match {}, {}", ref_id, rot_beacon_id);
                     }
-                })
-            } else {
-                matches.iter().for_each(|(ref_id, b_id)| println!("match at {:?} for ids {}, {:?}", ref_beacons.get(*ref_id).unwrap(), ref_id, b_id));
-                matches.into_iter().find_map(|(ref_id, ids)| if ref_id == beacon_ref_id {
-                    Some((ref_id, ids[0].0))
+                    Some((ref_id, rot_beacon_id))
                 } else {
                     None
-                })
+                }
+            }).collect();
+            if matches.len() >= 12 {
+                Some((rot_id, matches))
+            } else {
+                None
             }
-        } else {
-            None
-        }
+        })
     })
 }
+
 
 fn calc_total_unique_beacons(scanners: Vec<Vec<(i32, i32, i32)>>) -> usize {
     let first_scanner = scanners.get(0).unwrap();
@@ -182,44 +157,44 @@ fn calc_total_unique_beacons(scanners: Vec<Vec<(i32, i32, i32)>>) -> usize {
     while scanner_location_todos > 0 {
         scanner_location_todos -= 1;
         let ref_scanner: Vec<(i32, i32, i32)> = unique_beacons.clone().into_iter().collect();
-        println!("reference beacons: ");
-        ref_scanner.iter().enumerate().for_each(|(id, beacon)| println!(" {}: {:?}", id, beacon));
         for scanner_id in 0..scanners.len() {
             let scanner = scanners.get(scanner_id).unwrap();
             if let Some(t) = relative_scanner_locations.get(scanner_id).unwrap() {
                 println!("skipping because id {} has a location: {:?}", scanner_id, t);
                 continue;
             }
+            println!("-- checking scanner {} --", scanner_id);
             let relative_reference_beacons = calc_relative_beacons(&ref_scanner);
-            let rotations = calc_scanner_rotations(&scanner);
+            let relative_beacons = calc_relative_beacons(&scanner);
             // check all permutations for this scanner
-            let valid_coords_scanner_data = rotations.iter().enumerate().find_map(|(rotation_id, rotated_beacons)| {
-                if scanner_id == 2 && rotation_id == 18 {
-                    println!("in");
-                }
-                println!("checking scanner {} with rotation {}", scanner_id, rotation_id);
+            let valid_coords_scanner_data = relative_beacons.iter().enumerate().find_map(|(rel_beacon_id, relative_beacons)| {
+                println!("checking relative coords {}", rel_beacon_id);
                 // check offset to all other vals
-                let relative_beacons = calc_relative_beacons(&rotated_beacons);
-                let relative_beacons_with_ref_index = find_relative_matching_beacons(&relative_reference_beacons, &relative_beacons, &ref_scanner);
-                if let Some((ref_id, beacon_id)) = relative_beacons_with_ref_index {
-                    println!("found overlaps with scanner {} in rotation {}", scanner_id, rotation_id);
-                    let reference_offset = ref_scanner.get(ref_id).unwrap();
-                    let scanner_ref_coord = rotated_beacons.get(beacon_id).unwrap();
-                    let do_add = rotation_id > 14;
-                    let abs_scanner_location = if do_add { add(&reference_offset, &scanner_ref_coord) } else { sub(&reference_offset, &scanner_ref_coord) };
-                    if scanner_id == 2 {
-                        rot_ops.iter().enumerate().for_each(|(i, ops)| println!("abs scanner loc with rot {}: {:?}", i, ops.iter().rfold(abs_scanner_location, |coord, (deg, axis)| rotate(*deg, *axis, &coord))));
-                    }
-                    println!("determined scanner location of scanner {} at {:?}, rot ops {:?}", scanner_id, abs_scanner_location, calc_rotations().get(rotation_id));
-                    Some((scanner_id,
-                        rotation_id,
-                        abs_scanner_location,
-                        rotated_beacons.into_iter().map(move |coord| if do_add { sub(coord, &abs_scanner_location) } else { add(coord, &abs_scanner_location) }).collect::<Vec<(i32, i32, i32)>>()))
+                let mut rotations = calc_scanner_rotations(&relative_beacons);
+                let matches_per_rotation = check_matches_per_rotation(&relative_reference_beacons, &rotations);
+                if let Some((rot_id, matches)) = matches_per_rotation {
+                    println!("got {} matches in rotation {} for scanner {} in relation to beacon {}", matches.len(), rot_id, scanner_id, rel_beacon_id);
+                    let lookup_ref_id = matches.iter().find_map(|(ref_id, rot_id)| if *rot_id == rel_beacon_id { Some(ref_id) } else { None }).unwrap();
+                    let relative_offset = ref_scanner[*lookup_ref_id];
+
+                    let (reference_id, rotated_id) = matches.iter().next().unwrap();
+                    let root = sub(&ref_scanner[*reference_id], &rotations[rot_id][*rotated_id]);
+                    let offset = &scanner[rel_beacon_id];
+                    let offset = rot_ops.get(rot_id).unwrap().iter().rfold(*offset, |coord, (deg, axis)| rotate(-*deg, *axis, &coord));
+                    let scanner_location = sub(&root, &offset);
+                    println!("offset is {:?}, root is {:?}, scanner location is {:?}", offset, root, scanner_location);
+                    matches
+                            .iter()
+                            .map(|(reference_id, rotated_id)| (&ref_scanner[*reference_id], &rotations[rot_id][*rotated_id], reference_id, rotated_id))
+                            .for_each(|(ref_beacon, rot_beacon, reference_id, rotated_id)| println!(" {:?} - {:?} at ids {} {}", ref_beacon, rot_beacon, reference_id, rotated_id));
+                    Some((scanner_id, rot_id, scanner_location, relative_offset, rotations.remove(rot_id)))
                 } else {
                     None
                 }
+               
             });
-            if let Some((scanner_id, rotation_id, abs_scanner_location, valid_coords)) = valid_coords_scanner_data {
+            if let Some((scanner_id, rotation_id, abs_scanner_location, relative_offset, valid_coords)) = valid_coords_scanner_data {
+                let valid_coords: Vec<(i32, i32, i32)> = valid_coords.into_iter().map(|coord| add(&coord, &relative_offset)).collect();
                 println!("added coords: {:?}", valid_coords.iter().filter(|coord| !unique_beacons.contains(coord)).collect::<Vec<&(i32, i32, i32)>>());
                 
                 unique_beacons = valid_coords.into_iter().chain(unique_beacons.into_iter()).collect();
