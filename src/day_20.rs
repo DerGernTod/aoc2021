@@ -12,6 +12,15 @@ pub fn part_1() {
 }
 
 pub fn part_2() {
+    let (algo, image) = read_input("./input/day_20.txt");
+    let min = 0;
+    let max = f32::sqrt(image.len() as f32).floor() as i32 - 1;
+
+    let mut new_map = apply_algo(image, &algo, min, max, false);
+    for i in 1..50 {
+        new_map = apply_algo(new_map, &algo, min - i, max + i, i % 2 == 1);
+    }
+    println!("There are {} lights!", count_lights(&new_map));
 }
 
 fn count_lights(image: &HashMap<(i32, i32), bool>) -> usize {
@@ -121,9 +130,13 @@ mod tests {
         print(&coords, min, max);
         let new_map = apply_algo(coords, &algo, min, max, false);
         assert_eq!(count_lights(&new_map), 24);
-        let new_map = apply_algo(new_map, &algo, min - 1, max + 1, false);
+        let mut new_map = apply_algo(new_map, &algo, min - 1, max + 1, false);
         println!("result image:");
         print(&new_map, min - 2, max + 2);
         assert_eq!(count_lights(&new_map), 35);
+        for i in 2..50 {
+            new_map = apply_algo(new_map, &algo, min - i, max + i, false);
+        }
+        assert_eq!(count_lights(&new_map), 3351);
     }
 }
