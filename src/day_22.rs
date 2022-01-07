@@ -19,11 +19,11 @@ pub fn part_2() {
     let len = instructions.len();
     for (id, instruction) in instructions.into_iter().enumerate() {
         println!("starting instruction {}/{}", id + 1, len);
-        let new_cube = apply_instruction(&cubes, instruction);
-        cubes.push(new_cube);
+        cubes = apply_instruction(cubes, instruction);
         println!("{}/{} instructions completed", id + 1, len);
     }
-    println!("Found {}/{} standalone cubes", cubes.len(), len);
+    let lights = count_lights(cubes);
+    println!("Found {}/{} standalone cubes", lights, len);
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -40,9 +40,6 @@ impl Cube {
         width * height * depth
     }
     fn calc_intersection_cube(&self, other: &Cube) -> Option<Cube> {
-        if self == other {
-            return Some(self.clone());
-        }
         let min_a = self.0;
         let min_b = other.0;
         let max_a = self.1;
@@ -55,6 +52,8 @@ impl Cube {
             Some((min_b.0, i32::min(max_a.0, max_b.0)))
         } else if is_between(max_b.0, min_a.0, max_a.0) {
             Some((i32::max(min_a.0, min_b.0), max_b.0))
+        } else if min_a.0 == min_b.0 {
+            Some((min_a.0, i32::min(max_a.0, max_b.0)))
         } else {
             None
         };
@@ -66,6 +65,8 @@ impl Cube {
             Some((min_b.1, i32::min(max_a.1, max_b.1)))
         } else if is_between(max_b.1, min_a.1, max_a.1) {
             Some((i32::max(min_a.1, min_b.1), max_b.1))
+        } else if min_a.1 == min_b.1 {
+            Some((min_a.1, i32::min(max_a.1, max_b.1)))
         } else {
             None
         };
@@ -77,6 +78,8 @@ impl Cube {
             Some((min_b.2, i32::min(max_a.2, max_b.2)))
         } else if is_between(max_b.2, min_a.2, max_a.2) {
             Some((i32::max(min_a.2, min_b.2), max_b.2))
+        } else if min_a.2 == min_b.2 {
+            Some((min_a.2, i32::min(max_a.2, max_b.2)))
         } else {
             None
         };
@@ -139,9 +142,11 @@ fn apply_instruction_clamped(cubes: &mut HashMap<Coord, bool>, (on, from, to): (
     }
 }
 
-fn apply_instruction(cubes: &Vec<(Cube, Vec<(Cube, bool)>, bool)>, (on, from, to): (bool, Coord, Coord)) -> (Cube, Vec<(Cube, bool)>, bool) {
+fn apply_instruction(cubes: Vec<(Cube, Vec<(Cube, bool)>, bool)>, (on, from, to): (bool, Coord, Coord)) -> Vec<(Cube, Vec<(Cube, bool)>, bool)> {
     let new_cube = Cube(from, to);
-    let intersections: Vec<(Cube, bool)> = cubes
+    if on {
+        let mut res_cubes = vec![];
+        let intersections: Vec<(Cube, bool)> = cubes
         .iter()
         .filter_map(|(cube, int, positive)| cube
             .calc_intersection_cube(&new_cube)
@@ -157,11 +162,42 @@ fn apply_instruction(cubes: &Vec<(Cube, Vec<(Cube, bool)>, bool)>, (on, from, to
         )
         .flatten()
         .collect();
-    (new_cube, intersections, on)
+        res_cubes.extend(cubes);
+        res_cubes.push((new_cube, intersections, on));
+        res_cubes
+    } else {
+        cubes
+        .into_iter()
+        .map(|(cube, int, positive)| {
+            if let Some(c) = cube.calc_intersection_cube(&new_cube) {
+                let mut res_ints = vec![(c, false)];
+                for (int, add) in int {
+                    res_ints.push((int, add));
+                    if let Some(int_int_cube) = int.calc_intersection_cube(&new_cube) {
+                        res_ints.push((int_int_cube, !add));
+                    }
+                }
+                (cube, res_ints, positive)
+            } else {
+                (cube, int, positive)
+            }
+        })
+        .collect()
+    }
 }
 
 fn neg(n: bool) -> i64 {
     if n { 1 } else { -1 }
+}
+
+fn count_lights(operations: Vec<(Cube, Vec<(Cube, bool)>, bool)>) -> i64 {
+    operations
+        .into_iter()
+        .map(|(cube, operations, on)| operations
+            .iter()
+            .map(|(op_cube, op_on)| op_cube.volume() as i64 * neg(*op_on))
+            .sum::<i64>() + cube.volume() as i64 * neg(on)
+        ).sum::<i64>()
 }
 
 #[cfg(test)]
@@ -184,20 +220,31 @@ mod tests {
     fn test_part_2() {
         let instructions = parse_instructions("./input/day_22.test.2.txt");
         let mut cubes = vec![];
-        let len = instructions.len();
         
-        for (id, instruction) in instructions.into_iter().enumerate() {
-            let new_cube = apply_instruction(&cubes, instruction);
-            cubes.push(new_cube);
+        for instruction in instructions.into_iter() {
+            cubes = apply_instruction(cubes, instruction);
         }
-        let light_count: i64 = cubes
-        .into_iter()
-        .map(|(cube, operations, on)| operations
-            .iter()
-            .map(|(op_cube, op_on)| op_cube.volume() as i64 * neg(*op_on))
-            .sum::<i64>() + cube.volume() as i64 * neg(on)
-        ).sum::<i64>();
+        let light_count: i64 = count_lights(cubes);
         assert_eq!(light_count, 2758514936282235);
+    }
+    #[test]
+    fn test_volume() {
+        let cube = Cube(Coord(0, 0, 0), Coord(3, 3, 3));
+        assert_eq!(cube.volume(), 27);
+    }
+    #[test]
+    fn test_apply_instructions() {
+        let instructions = vec![
+            (true, Coord(0, 3, 0), Coord(3, 6, 1)),
+            (false, Coord(2, 2, 0), Coord(6, 7, 1)),
+            (true, Coord(1, 0, 0), Coord(4, 4, 1)),
+            (true, Coord(2, 4, 0), Coord(3, 5, 1)),
+        ];
+        let mut cubes = vec![];
+        for instruction in instructions {
+            cubes = apply_instruction(cubes, instruction);
+        }
+        assert_eq!(count_lights(cubes), 18);
     }
     #[test]
     fn test_calc_intersection_cube() {
@@ -214,5 +261,11 @@ mod tests {
         let b = Cube(Coord(-3, -3, -3), Coord(-1, -1, -1));
         assert_eq!(b.calc_intersection_cube(&a), None);
         assert_eq!(a.calc_intersection_cube(&b), None);
+
+        
+        let a = Cube(Coord(0, 3, 0), Coord(3, 6, 1));
+        let b = Cube(Coord(2, 2, 0), Coord(6, 7, 1));
+        let expected = Cube(Coord(2, 3, 0), Coord(3, 6, 1));
+        assert_eq!(a.calc_intersection_cube(&b).unwrap(), expected);
     }
 }
