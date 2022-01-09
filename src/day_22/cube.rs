@@ -9,7 +9,7 @@ impl Cube {
         let width: u64 = (self.1.0 - self.0.0).try_into().unwrap();
         let height: u64 = (self.1.1 - self.0.1).try_into().unwrap();
         let depth: u64 = (self.1.2 - self.0.2).try_into().unwrap();
-        width * height * depth
+        (width + 1) * (height + 1) * (depth + 1)
     }
 
     pub fn calc_intersection_cube(&self, other: &Cube) -> Option<Cube> {
@@ -73,7 +73,7 @@ mod tests {
     use crate::day_22::{Coord, Cube};
     #[test]
     fn test_volume() {
-        let cube = Cube(Coord(0, 0, 0), Coord(3, 3, 3));
+        let cube = Cube(Coord(0, 0, 0), Coord(2, 2, 2));
         assert_eq!(cube.volume(), 27);
     }
     #[test]
@@ -96,6 +96,11 @@ mod tests {
         let a = Cube(Coord(0, 3, 0), Coord(3, 6, 1));
         let b = Cube(Coord(2, 2, 0), Coord(6, 7, 1));
         let expected = Cube(Coord(2, 3, 0), Coord(3, 6, 1));
+        assert_eq!(a.calc_intersection_cube(&b).unwrap(), expected);
+
+        let a = Cube(Coord(0, 0, 0), Coord(5, 0, 1));
+        let b = Cube(Coord(0, 0, 0), Coord(2, 0, 0));
+        let expected = Cube(Coord(0, 0, 0), Coord(2, 0, 0));
         assert_eq!(a.calc_intersection_cube(&b).unwrap(), expected);
     }
 }
