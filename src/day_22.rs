@@ -150,26 +150,20 @@ mod tests {
     fn test_part_2() {
         let instructions = parse_instructions("./input/day_22.test.2.txt");
         let cubes = instructions.into_iter().fold(vec![], apply_instruction);
-        cubes.iter().for_each(|(cube, intersections)| {
-            println!("{:?}: {}", cube, cube.volume());
-            intersections.iter().for_each(|(int, on)| println!("  {}, {:?}: {}", on, int, int.volume()));
-        });
         let light_count = count_lights(cubes);
         assert_eq!(light_count, 2758514936282235);
     }
-    // the tests below were written without the volume-adaption for 0-width cubes, so just ignore them
-    // #[test]
+    #[test]
     fn test_apply_instructions() {
         let instructions = vec![
-            (true, Coord(0, 3, 0), Coord(3, 6, 1)),
-            (false, Coord(2, 2, 0), Coord(6, 7, 1)),
-            (true, Coord(1, 0, 0), Coord(4, 4, 1)),
-            (true, Coord(2, 4, 0), Coord(3, 5, 1)),
+            (true, Coord(0, 0, 0), Coord(1, 1, 1)),
+            (false, Coord(0, 1, 0), Coord(2, 2, 1)),
         ];
         let cubes = instructions.into_iter().fold(vec![], apply_instruction);
-        assert_eq!(count_lights(cubes), 18);
+        assert_eq!(count_lights(cubes), 4);
     }  
-    // #[test]  
+    // the tests below were written without the volume-adaption for 0-width cubes, so just ignore them
+        // #[test]  
     fn test_apply_instructions_same() {
         let instructions = vec![
             (true, Coord(0, 0, 0), Coord(3, 3, 1)),

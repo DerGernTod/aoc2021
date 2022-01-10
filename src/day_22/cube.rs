@@ -27,6 +27,10 @@ impl Cube {
             Some((i32::max(min_a.0, min_b.0), max_b.0))
         } else if min_a.0 == min_b.0 {
             Some((min_a.0, i32::min(max_a.0, max_b.0)))
+        } else if min_a.0 == max_b.0 {
+            Some((min_a.0, min_a.0))
+        } else if max_a.0 == min_b.0 {
+            Some((max_a.0, max_a.0))
         } else {
             None
         };
@@ -40,6 +44,10 @@ impl Cube {
             Some((i32::max(min_a.1, min_b.1), max_b.1))
         } else if min_a.1 == min_b.1 {
             Some((min_a.1, i32::min(max_a.1, max_b.1)))
+        } else if min_a.1 == max_b.1 {
+            Some((min_a.1, min_a.1))
+        } else if max_a.1 == min_b.1 {
+            Some((max_a.1, max_a.1))
         } else {
             None
         };
@@ -53,8 +61,11 @@ impl Cube {
             Some((i32::max(min_a.2, min_b.2), max_b.2))
         } else if min_a.2 == min_b.2 {
             Some((min_a.2, i32::min(max_a.2, max_b.2)))
-        } else {
-            None
+        } else if min_a.2 == max_b.2 {
+            Some((min_a.2, min_a.2))
+        } else if max_a.2 == min_b.2 {
+            Some((max_a.2, max_a.2))
+        } else {            None
         };
 
         match (x, y, z) {
@@ -101,6 +112,11 @@ mod tests {
         let a = Cube(Coord(0, 0, 0), Coord(5, 0, 1));
         let b = Cube(Coord(0, 0, 0), Coord(2, 0, 0));
         let expected = Cube(Coord(0, 0, 0), Coord(2, 0, 0));
+        assert_eq!(a.calc_intersection_cube(&b).unwrap(), expected);
+
+        let a = Cube(Coord(0, 0, 0), Coord(1, 1, 1));
+        let b = Cube(Coord(0, 1, 0), Coord(2, 2, 1));
+        let expected = Cube(Coord(0, 1, 0), Coord(1, 1, 1));
         assert_eq!(a.calc_intersection_cube(&b).unwrap(), expected);
     }
 }
