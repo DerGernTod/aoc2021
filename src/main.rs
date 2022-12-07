@@ -1,5 +1,6 @@
 #![feature(linked_list_cursors)]
 #![feature(map_many_mut)]
+#![feature(is_some_and)]
 // mod day_13;
 // mod day_14;
 // mod day_15;

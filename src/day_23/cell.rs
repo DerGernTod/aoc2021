@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::pod::{PodKind, Pod};
+use super::pod::PodKind;
 #[derive(PartialEq, Eq, Debug)]
 pub enum CellType {
     Hallway,
@@ -10,12 +10,12 @@ pub enum CellType {
 }
 #[derive(PartialEq, Eq, Debug)]
 pub struct Cell {
-    pub occupant: Option<Pod>,
+    pub occupant: Option<usize>,
     pub cell_type: CellType,
     pub location: (u32, u32)
 }
 impl Cell {
-    pub fn new(occupant: Option<Pod>, cell_type: CellType, location: (u32, u32)) -> Cell {
+    pub fn new(occupant: Option<usize>, cell_type: CellType, location: (u32, u32)) -> Cell {
         Cell {
             occupant,
             cell_type,
