@@ -15,13 +15,23 @@ impl Block {
             blocked_id
         }
     }
+    fn is_deadlocked(&self, blocks_in_loop: &[Block], all_blocks: &[Block], block_offset: usize) -> bool {
+        let mut others_clone = all_blocks.to_owned();
+        others_clone.rotate_left(block_offset + 1);
+        let mut new_loop_blocks = blocks_in_loop.to_owned();
+        new_loop_blocks.push(*self);
+        for (offset, other) in others_clone.iter().enumerate() {
+            if other.blocked_id == self.blocked_by
+                && (blocks_in_loop.contains(other) 
+                    || other.is_deadlocked(&new_loop_blocks, &others_clone, offset)) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
-struct LinkNode {
-    block: Block,
-    next: Vec<LinkNode>
-}
-
+type IterationStep = Vec<(usize, Vec<Transform>)>;
 pub struct DecisionTree {
     self_cost: u32,
     depth: usize,
@@ -61,22 +71,13 @@ impl DecisionTree {
             }
         }
     }
-    fn block_loops(&self, block: Block) -> bool {
-        for blocks in &self.blocked_moves {
-            if blocks.blocked_by == block.blocked_id {
-                return true;
-            }
-        }
-        false
-    }
+
     fn is_deadlocked(&self) -> bool {
         let blocks = &self.blocked_moves;
+        let blocks_vec: Vec<Block> = blocks.clone().into_iter().collect();
         for block in blocks {
-            let mut cur_block = block;
-        }
-        for (id, blocks) in blocks_by_id {
-            for block in blocks {
-
+            if block.is_deadlocked(&[], &blocks_vec, 0) {
+                return true;
             }
         }
         false
@@ -89,9 +90,8 @@ impl DecisionTree {
             return None;
         }
         if let Some(transforms) = &self.transforms {
-            grid.exec_transformations(transforms, false);
-            grid.pods.get_mut(&self.pod_id).unwrap().walked_count += 1;
-            println!("applied transforms to: \n{:?}\n", grid);
+            grid.exec_transformations(transforms, self.pod_id);
+            println!("applied transforms to: \n{grid}\n");
         }
         if self.pod_id < 8 && grid.is_pod_in_goal(self.pod_id) {
             // println!("{} pod {} reached end with cost of {}", " ".repeat(self.depth + 1), self.pod_id, self.self_cost);
@@ -121,9 +121,8 @@ impl DecisionTree {
             // in case i already moved once, and i'm in goal area but not in end, 
             // there's no way for me. 
             if !grid.is_pod_in_goal(self_pod.id) && self_pod.walked_count == 1 && self_pod.is_in_goal_area() {
-                grid.exec_transformations(self.transforms.as_ref().unwrap(), true);
-                grid.pods.get_mut(&self.pod_id).unwrap().walked_count -= 1;
-                println!("reversed transforms to: \n{:?}\n", grid);
+                grid.reverse_iterations(1);
+                println!("reversed transforms to: \n{grid}\n");
                 return None;
             }
             // otherwise add all remaining pods to my children
@@ -131,28 +130,49 @@ impl DecisionTree {
                 self.add_child(DecisionTree::new(pod_id, 0, None, self.blocked_moves.clone(), self.depth + 1), false);
             }
         }
-        let mut results: Vec<u32> = self.children
+        let mut results: Vec<(u32, IterationStep)> = self.children
             .iter_mut()
-            .filter_map(|child_tree| child_tree.evaluate(grid)
-                .and_then(|cost| 
+            .filter_map(|child_tree| {
+                let start_offset = grid.get_iteration_len();
+                if let Some(cost) = child_tree.evaluate(grid) {
                     if !grid.is_pod_in_goal(child_tree.pod_id) {
-                        child_tree.evaluate(grid).map(|double_cost| cost + double_cost)
+                        // if we're already in goal area but not in goal, there's no way for
+                        if grid.pods.get(&child_tree.pod_id).unwrap().is_in_goal_area() {
+                            grid.reverse_iterations(grid.get_iteration_len() - start_offset);
+                            return None;
+                        }
+                        if child_tree.transforms.is_some() {
+                            // reverse the last one since it will be applied again later
+                            grid.reverse_iterations(1);
+                        }
+                        if let Some(second_cost) = child_tree.evaluate(grid) {
+                            let reversed = grid.reverse_iterations(grid.get_iteration_len() - start_offset);
+                            Some((cost + second_cost, reversed))
+                        } else {
+                            grid.reverse_iterations(grid.get_iteration_len() - start_offset);
+                            None
+                        }
                     } else {
-                        Some(cost)
-                    }))
-                .map(|cost| cost + self.self_cost)
-            .collect();
-        results.sort();
-        let best_result = results.first().copied();
-        if best_result.is_none() {
+                        let reversed = grid.reverse_iterations(grid.get_iteration_len() - start_offset);
+                        Some((cost, reversed))
+                    }
+                } else {
+                    grid.reverse_iterations(grid.get_iteration_len() - start_offset);
+                    None
+                }
+            }).collect();
+        results.sort_by_key(|(cost, _)| *cost);
+        if let Some((cost, iterations)) = results.first() {
+            grid.apply_iterations(iterations);
+            Some(cost + self.self_cost)
+        } else {
             println!("{} found no way for {}!", " ".repeat(self.depth), self.pod_id);
-            if let Some(transforms) = &self.transforms {
-                grid.exec_transformations(transforms, true);
-                grid.pods.get_mut(&self.pod_id).unwrap().walked_count -= 1;
-                println!("reversed transforms to: \n{:?}\n", grid);
+            if self.transforms.is_some() {
+                grid.reverse_iterations(1);
+                println!("reversed transforms to: \n{grid}\n");
             }
+            None
         }
-        best_result
     }
 }
 
@@ -174,15 +194,15 @@ mod tests {
     }
     #[test]
     fn test_is_deadlock() {
-        // let blocks = DecisionTree::new_test_blocked(vec![Block::new(1, 2), Block::new(2, 1)]);
-        // assert!(blocks.is_deadlocked());
-        // let blocks = DecisionTree::new_test_blocked(vec![Block::new(1, 2), Block::new(2, 3), Block::new(3, 1)]);
-        // assert!(blocks.is_deadlocked());
-        // let blocks = DecisionTree::new_test_blocked(vec![Block::new(1, 2), Block::new(2, 3), Block::new(3, 4)]);
-        // assert!(!blocks.is_deadlocked());
-        // let blocks = DecisionTree::new_test_blocked(vec![Block::new(7, 3), Block::new(0, 1), Block::new(1, 2), Block::new(2, 1)]);
-        // assert!(blocks.is_deadlocked());
-        let mut blocks = DecisionTree::new_test_blocked(HashSet::from([
+        let blocks = DecisionTree::new_test_blocked(HashSet::from([Block::new(1, 2), Block::new(2, 1)]));
+        assert!(blocks.is_deadlocked());
+        let blocks = DecisionTree::new_test_blocked(HashSet::from([Block::new(1, 2), Block::new(2, 3), Block::new(3, 1)]));
+        assert!(blocks.is_deadlocked());
+        let blocks = DecisionTree::new_test_blocked(HashSet::from([Block::new(1, 2), Block::new(2, 3), Block::new(3, 4)]));
+        assert!(!blocks.is_deadlocked());
+        let blocks = DecisionTree::new_test_blocked(HashSet::from([Block::new(7, 3), Block::new(0, 1), Block::new(1, 2), Block::new(2, 1)]));
+        assert!(blocks.is_deadlocked());
+        let blocks = DecisionTree::new_test_blocked(HashSet::from([
             Block::new(5, 1),
             Block::new(1, 3),
             Block::new(3, 7),
@@ -201,6 +221,55 @@ mod tests {
         set.insert(Block::new(5, 1));
         assert_eq!(set.len(), 1);
     }
+
+    #[test]
+    fn test_block_is_deadlocked() {
+        let mut block_list = vec![Block::new(0, 1), Block::new(1, 2), Block::new(2, 3)];
+        assert!(!block_list[0].is_deadlocked(&[], &block_list, 0));
+        block_list.rotate_left(1);
+        assert!(!block_list[0].is_deadlocked(&[], &block_list, 0));
+        block_list.rotate_left(1);
+        assert!(!block_list[0].is_deadlocked(&[], &block_list, 0));
+
+        let mut block_list = vec![Block::new(0, 1), Block::new(1, 2), Block::new(2, 0)];
+        assert!(block_list[0].is_deadlocked(&[], &block_list, 0));
+        block_list.rotate_left(1);
+        assert!(block_list[0].is_deadlocked(&[], &block_list, 0));
+        block_list.rotate_left(1);
+        assert!(block_list[0].is_deadlocked(&[], &block_list, 0));
+
+        let block_list = vec![
+            Block::new(5, 1),
+            Block::new(1, 3),
+            Block::new(3, 7),
+            Block::new(7, 0),
+            Block::new(1, 2),
+            Block::new(2, 0),
+            Block::new(0, 1),
+        ];
+        assert!(block_list[0].is_deadlocked(&[], &block_list, 0));
+
+        let block_list = vec![
+            Block::new(5, 1),
+            Block::new(2, 5),
+            Block::new(1, 2),
+            Block::new(3, 7),
+            Block::new(5, 2),
+            Block::new(5, 0),
+            Block::new(7, 0),
+            Block::new(2, 3),
+        ];
+        assert!(block_list[0].is_deadlocked(&[], &block_list, 0));
+        assert!(block_list[1].is_deadlocked(&[], &block_list, 1));
+        assert!(block_list[2].is_deadlocked(&[], &block_list, 2));
+        assert!(!block_list[3].is_deadlocked(&[], &block_list, 3));
+        assert!(block_list[4].is_deadlocked(&[], &block_list, 4));
+        assert!(!block_list[5].is_deadlocked(&[], &block_list, 5));
+        assert!(!block_list[6].is_deadlocked(&[], &block_list, 6));
+        assert!(!block_list[7].is_deadlocked(&[], &block_list, 7));
+
+    }
+
     #[test]
     fn test_add_child() {
         let mut tree = DecisionTree::new_test(1);
