@@ -84,25 +84,26 @@ impl DecisionTree {
     }
 
     pub fn evaluate(&mut self, grid: &mut Grid) -> Option<u32> {
-        println!("{} evaluating pod {}", " ".repeat(self.depth), self.pod_id);
+        // println!("{} evaluating pod {}", " ".repeat(self.depth), self.pod_id);
         if self.is_deadlocked() {
-            println!("{} pod {} is deadlocked! locks: {:?}", " ".repeat(self.depth), self.pod_id, self.blocked_moves);
+            // println!("{} pod {} is deadlocked! locks: {:?}", " ".repeat(self.depth), self.pod_id, self.blocked_moves);
             return None;
         }
         if let Some(transforms) = &self.transforms {
             grid.exec_transformations(transforms, self.pod_id);
-            println!("applied transforms to: \n{grid}\n");
+            if !transforms.is_empty() {
+                println!("{grid}\n");
+            }
         }
         if self.pod_id < 8 && grid.is_pod_in_goal(self.pod_id) {
             // println!("{} pod {} reached end with cost of {}", " ".repeat(self.depth + 1), self.pod_id, self.self_cost);
             return Some(self.self_cost);
         }
-        let self_pod = grid.pods.get(&self.pod_id).unwrap();
         if self.transforms.is_none() {
-            let goals = self_pod.calc_goals();
+            let goals = grid.calc_goals_for_pod(self.pod_id);
             let mut occupants = HashSet::new();
             for (_, goal) in goals {
-                match grid.follow_to_goal_dec(self_pod.id, goal) {
+                match grid.follow_to_goal_dec(self.pod_id, goal) {
                     PodMoveResultDec::Hit(occupant) => { occupants.insert(occupant); },
                     PodMoveResultDec::Pass(cost, transforms) 
                     | PodMoveResultDec::ReachedEnd(cost, transforms) => {
@@ -120,9 +121,8 @@ impl DecisionTree {
             // if i already have a transform, it means i finished moving.
             // in case i already moved once, and i'm in goal area but not in end, 
             // there's no way for me. 
+            let self_pod = grid.pods.get(&self.pod_id).unwrap();
             if !grid.is_pod_in_goal(self_pod.id) && self_pod.walked_count == 1 && self_pod.is_in_goal_area() {
-                grid.reverse_iterations(1);
-                println!("reversed transforms to: \n{grid}\n");
                 return None;
             }
             // otherwise add all remaining pods to my children
@@ -135,23 +135,10 @@ impl DecisionTree {
             .filter_map(|child_tree| {
                 let start_offset = grid.get_iteration_len();
                 if let Some(cost) = child_tree.evaluate(grid) {
-                    if !grid.is_pod_in_goal(child_tree.pod_id) {
-                        // if we're already in goal area but not in goal, there's no way for
-                        if grid.pods.get(&child_tree.pod_id).unwrap().is_in_goal_area() {
-                            grid.reverse_iterations(grid.get_iteration_len() - start_offset);
-                            return None;
-                        }
-                        if child_tree.transforms.is_some() {
-                            // reverse the last one since it will be applied again later
-                            grid.reverse_iterations(1);
-                        }
-                        if let Some(second_cost) = child_tree.evaluate(grid) {
-                            let reversed = grid.reverse_iterations(grid.get_iteration_len() - start_offset);
-                            Some((cost + second_cost, reversed))
-                        } else {
-                            grid.reverse_iterations(grid.get_iteration_len() - start_offset);
-                            None
-                        }
+                    // if we're already in goal area but not in goal, there's no way for us
+                    if !grid.is_pod_in_goal(child_tree.pod_id) && grid.pods.get(&child_tree.pod_id).unwrap().is_in_goal_area() {
+                        grid.reverse_iterations(grid.get_iteration_len() - start_offset);
+                        None
                     } else {
                         let reversed = grid.reverse_iterations(grid.get_iteration_len() - start_offset);
                         Some((cost, reversed))
@@ -162,14 +149,13 @@ impl DecisionTree {
                 }
             }).collect();
         results.sort_by_key(|(cost, _)| *cost);
-        if let Some((cost, iterations)) = results.first() {
+        if let Some((cost, iterations)) = results.into_iter().next() {
             grid.apply_iterations(iterations);
             Some(cost + self.self_cost)
         } else {
-            println!("{} found no way for {}!", " ".repeat(self.depth), self.pod_id);
             if self.transforms.is_some() {
                 grid.reverse_iterations(1);
-                println!("reversed transforms to: \n{grid}\n");
+                println!("{grid}\n");
             }
             None
         }

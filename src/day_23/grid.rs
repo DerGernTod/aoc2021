@@ -1,8 +1,8 @@
-use std::{collections::HashMap, fs, fmt, vec};
+use std::{collections::HashMap, fs, fmt, vec, cmp::Ordering};
 
 use super::{
     cell::{Cell, CellType},
-    pod::{PodKind, Pod, PodFactory, calc_next_step},
+    pod::{PodKind, Pod, PodFactory, calc_next_step, self},
     transformation::Transform
 };
 
@@ -101,6 +101,23 @@ impl Grid {
         self.iterations.len()
     }
 
+    pub fn calc_goals_for_pod(&self, pod_id: usize) -> Vec<(u32, (u32, u32))> {
+        let pod = self.pods.get(&pod_id).unwrap();
+        let calced_goals = pod.calc_goals();
+        calced_goals.into_iter().filter(|(_, (x, y))| {
+            if x != &pod.kind.goal_col() {
+                return true;
+            } else if *y == 2 {
+                if let Some(occupant) = self.cells.get(&(*x, 3)).unwrap().occupant {
+                    return self.pods.get(&occupant).unwrap().kind == pod.kind
+                } else {
+                    return false;
+                }
+            }
+            false
+        }).collect()
+    }
+
     pub fn get_pod_kinds_sorted(&self) -> Vec<(PodKind, usize)> {
         let mut pod_kind_tuples: Vec<(PodKind, usize)> = self.pods
             .values()
@@ -163,8 +180,14 @@ impl Grid {
             .filter(|&(id, pod)| !self.is_pod_in_goal(*id) && pod.walked_count < 2)
             .map(|(_, pod)| pod)
             .collect();
-        incomplete_pods.sort_by_key(|pod| pod.kind);
-        incomplete_pods.iter().rev().map(|pod| pod.id).collect()
+        incomplete_pods.sort_by(|pod_a, pod_b| {
+            if pod_a.location.1 == pod_b.location.1 {
+                pod_b.kind.cmp(&pod_a.kind)
+            } else {
+                pod_a.location.1.cmp(&pod_b.location.1)
+            }
+        });
+        incomplete_pods.iter().map(|pod| pod.id).collect()
     }
 
     fn move_pod(&mut self, from: &(u32, u32), to: &(u32, u32)) {
@@ -194,17 +217,22 @@ impl Grid {
             for Transform(_, from, to) in transforms.iter().rev() {
                 self.move_pod(to, from);
             }
+            if !transforms.is_empty() {
+                println!("{self}\n");
+            }
             reversed_iterations.push((pod_id, transforms));
         }
         reversed_iterations
     }
 
-    pub fn apply_iterations(&mut self, iterations: &Vec<(usize, Vec<Transform>)>) {
-        for (pod_id, transforms) in iterations.iter().rev() {
-            self.pods.get_mut(&pod_id).unwrap().walked_count += 1;
+    pub fn apply_iterations(&mut self, iterations: Vec<(usize, Vec<Transform>)>) {
+        for iteration in iterations.into_iter().rev() {
+            let (pod_id, transforms) = &iteration;
+            self.pods.get_mut(pod_id).unwrap().walked_count += 1;
             for Transform(_, from, to) in transforms {
                 self.move_pod(from, to);
             }
+            self.iterations.push(iteration);
         }
     }
 
