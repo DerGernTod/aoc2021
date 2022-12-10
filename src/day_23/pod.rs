@@ -1,4 +1,4 @@
-use std::{fmt, collections::HashSet};
+use std::{fmt, collections::HashSet, cmp::Ordering};
 
 const HALLWAY_GOALS: [(u32, u32); 7] = [(1, 1), (2, 1), (4, 1), (6, 1), (8, 1), (10, 1), (11, 1)];
 
@@ -123,7 +123,15 @@ impl Pod {
             goals.append(&mut HALLWAY_GOALS.into_iter().map(|goal|(self.calc_costs_for_goal(goal), goal)).collect());
         } 
  
-        goals.sort_by_key(|(cost, _)| *cost);
+        goals.sort_by(|(cost_a, goal_a), (cost_b, goal_b)| {
+            let edge_dist_a = goal_a.0.abs_diff(2).min(goal_a.0.abs_diff(10)).min(goal_a.0.abs_diff(6));
+            let edge_dist_b = goal_b.0.abs_diff(2).min(goal_b.0.abs_diff(10)).min(goal_b.0.abs_diff(6));
+            match (edge_dist_a.cmp(&edge_dist_b), goal_a.1.cmp(&goal_b.1), cost_a.cmp(cost_b)) {
+                (edge_dist, Ordering::Equal, Ordering::Equal) => edge_dist,
+                (_, y, Ordering::Equal) => y.reverse(),
+                (_, _, x) => x,
+            }
+        });
         goals
     }
 
