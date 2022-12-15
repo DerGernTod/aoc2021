@@ -1,6 +1,7 @@
 #![feature(linked_list_cursors)]
 #![feature(map_many_mut)]
 #![feature(is_some_and)]
+
 // mod day_13;
 // mod day_14;
 // mod day_15;
@@ -12,6 +13,18 @@
 // mod day_21;
 // mod day_22;
 mod day_23;
+
+// #############
+// #...........#
+// ###B#B#D#A###
+//   #C#A#D#C#
+//   #########
+
+// #############
+// #...........#
+// ###A#B#C#D###
+//   #A#B#C#D#
+//   #########
 
 fn main() {
     // day_13::part_1();
@@ -34,6 +47,7 @@ fn main() {
     // day_21::part_2();
     // day_22::part_1();
     // day_22::part_2();
-    day_23::part_1();
-    day_23::part_2();
+    // day_23::part_1();
+    // day_23::part_2();
+    day_23::day_23();
 }
