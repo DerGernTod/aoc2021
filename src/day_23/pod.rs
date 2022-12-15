@@ -77,23 +77,28 @@ impl Ord for Pod {
 }
 
 impl Pod {
-    pub fn new(location: Coords, kind: PodKind, num_turns: usize) -> Pod {
+    pub fn new(location: Coords, kind: PodKind, num_turns: usize, use_size_four: bool) -> Pod {
         let mut pod = Pod {
             location,
             kind,
             cur_goals: vec![],
             num_turns
         };
-        pod.recalculate_goals();
+        pod.recalculate_goals(use_size_four);
         pod
     }
-    pub fn recalculate_goals(&mut self) {
+    pub fn recalculate_goals(&mut self, use_size_four: bool) {
         let (x, y) = self.location;
         let mut cur_goals = vec![];
         let goal_col = self.kind.goal_col();
+        let y_end = if use_size_four { 5 } else { 3 };
         
-        if self.num_turns < 2 && !(x == goal_col && y == 3) {
+        if self.num_turns < 2 && !(x == goal_col && y == y_end) {
             if y == 1 {
+                if use_size_four {
+                    cur_goals.push((goal_col, 4));
+                    cur_goals.push((goal_col, 5));    
+                }
                 cur_goals.push((goal_col, 3));
                 cur_goals.push((goal_col, 2));
             } else if self.num_turns == 0 {
@@ -106,6 +111,10 @@ impl Pod {
                 cur_goals.push((11, 1));
                 cur_goals.push((goal_col, 2));
                 cur_goals.push((goal_col, 3));
+                if use_size_four {
+                    cur_goals.push((goal_col, 4));
+                    cur_goals.push((goal_col, 5));    
+                }
             }
         }
         self.cur_goals = cur_goals

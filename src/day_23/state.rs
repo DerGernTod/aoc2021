@@ -22,7 +22,7 @@ impl State {
         }
     }
 
-    pub fn calc_possible_neighbors(&self) -> Vec<Rc<State>> {
+    pub fn calc_possible_neighbors(&self, use_size_four: bool) -> Vec<Rc<State>> {
         self.pods
             .iter()
             .flat_map(|(coords, pod)| pod.cur_goals
@@ -35,7 +35,7 @@ impl State {
                     let pod_kind = pod.kind as usize;
                     pod.location = *goal;
                     pod.num_turns += 1;
-                    pod.recalculate_goals();
+                    pod.recalculate_goals(use_size_four);
                     pods_clone.insert(*goal, pod);
                     Rc::new(State::new(pods_clone, self.cheapest_path + steps * pod_kind))
                 })
