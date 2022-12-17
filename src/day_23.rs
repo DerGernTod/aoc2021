@@ -8,7 +8,7 @@ mod state;
 mod state_by_cheapest;
 mod state_by_pods;
 
-// this is basically brute force + djikstra:
+// this is basically brute force + dijkstra:
 // - create lists of remaining and all states, put starting state in both lists
 // - look at the current state. if it's the target, return its costs. if not
 // - generate all neighbors = all states this state can transition to
@@ -18,7 +18,7 @@ mod state_by_pods;
 // - remove current state from remaining states, pick next remaining state
 
 // part 1 is rather fast, part 2 can take half an hour... 
-// could probably be improved a lot by using a* instead of djikstra,
+// could probably be improved a lot by using a* instead of dijkstra,
 // e.g. by using num pods in goal as heuristics
 
 pub fn day_23() {
